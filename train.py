@@ -66,7 +66,7 @@ def train(ds:str, model_name='lsgnn', config=None, n=0):
         print('pre-computing intermediate representations...')
         X_OUT_L_OUT_H = model.prop(x, edge_index, DAD)
 
-    # show conifg
+    # show config
     if not SHOW_CONFIG:
         config_dict = json.dumps(config, indent=4)
         print(config_dict)
