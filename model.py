@@ -8,48 +8,7 @@ from torch_sparse import SparseTensor, matmul
 from tqdm import tqdm
 
 import utils as u
-
-
-class BRBlock(nn.Module):
-    def __init__(self, batch_size, in_dim, out_dim):
-        super(BRBlock, self).__init__()
-
-        self.w = Parameter(torch.zeros([batch_size, in_dim, out_dim]))
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        with torch.no_grad():
-            nn.init.xavier_normal_(self.w.data)
-
-    def forward(self, x):
-        # x: (bs, N, in_dim)
-        x = torch.bmm(x, self.w)
-        x = F.normalize(x, p=2, dim=-1)
-        x = F.relu(x)
-        return x
-
-
-class BatchReduce(nn.Module):
-    """reduce dimension"""
-    def __init__(
-        self, batch_size, in_channels, hidden_channels, 
-        num_layers=1,  # 1 or 2
-    ):
-        super(BatchReduce, self).__init__()
-
-        self.L = num_layers
-
-        if num_layers == 1:
-            self.reduce = BRBlock(batch_size, in_channels, hidden_channels)
-        elif num_layers >= 2:
-            reduce = [BRBlock(batch_size, in_channels, 2*hidden_channels)]
-            for _ in range(1, num_layers-1):
-                reduce.append(BRBlock(batch_size, 2*hidden_channels, 2*hidden_channels))
-            reduce.append(BRBlock(batch_size, 2*hidden_channels, hidden_channels))
-            self.reduce = nn.Sequential(*reduce)
-    
-    def forward(self, x):
-        return self.reduce(x)
+import config as c
 
 
 class LSGNN(MessagePassing):
@@ -86,7 +45,16 @@ class LSGNN(MessagePassing):
             nn.Linear(hidden_channels, 3*self.K)
         )
 
-        self.reduce = BatchReduce(2*self.K+1, in_channels, hidden_channels, num_reduce_layers)
+        if num_reduce_layers == 1:
+            self.reduce = [Parameter(torch.zeros([2*self.K+1, in_channels, hidden_channels]))]
+        elif num_reduce_layers > 1:
+            self.reduce = [Parameter(torch.zeros([2*self.K+1, in_channels, 2*hidden_channels]))]
+            for _ in range(num_reduce_layers-2):
+                self.reduce.append(Parameter(torch.zeros([2*self.K+1, 2*hidden_channels, 2*hidden_channels])))
+            self.reduce.append(Parameter(torch.zeros([2*self.K+1, in_channels, hidden_channels])))
+        else:
+            raise NotImplementedError
+        self.reset_parameters()
 
         if config['A_embed']:
             self.A_mlp = nn.Sequential(
@@ -111,19 +79,30 @@ class LSGNN(MessagePassing):
 
         self.cache = None
 
+    @torch.no_grad()
+    def reset_parameters(self):
+        for i, param in enumerate(self.reduce):
+            self.register_parameter(f'reduce_{i}', param)
+            nn.init.xavier_uniform_(param.data)
+
     def dist(self, x, edge_index:torch.Tensor):
-
-        split_size = 10000
-        dist = []
-        for ei_i in tqdm(edge_index.split(split_size, dim=-1), ncols=70):
-            src_i, tgt_i = ei_i
-
-            if self.method == 'cos':                    
-                dist.append((x[src_i] * x[tgt_i]).sum(dim=-1))
+        src, tgt = edge_index
+        
+        if self.ds not in c.large_graph:
+            if self.method == 'cos':
+                dist = (x[src] * x[tgt]).sum(dim=-1)
             elif self.method == 'norm2':
-                dist.append(torch.norm(x[src_i] - x[tgt_i], p=2, dim=-1))
-
-        dist = torch.cat(dist, dim=0)
+                dist = torch.norm(x[src] - x[tgt], p=2, dim=-1)
+        else:
+            split_size = 10000
+            dist = []
+            for ei_i in tqdm(edge_index.split(split_size, dim=-1), ncols=70):
+                src_i, tgt_i = ei_i
+                if self.method == 'cos':                    
+                    dist.append((x[src_i] * x[tgt_i]).sum(dim=-1))
+                elif self.method == 'norm2':
+                    dist.append(torch.norm(x[src_i] - x[tgt_i], p=2, dim=-1))
+            dist = torch.cat(dist, dim=0)
 
         dist = dist.view(-1, 1)
         dist = torch.cat([dist, dist.square()], dim=-1)
@@ -146,11 +125,16 @@ class LSGNN(MessagePassing):
             DAD = u.cal_filter(dge_index=edge_index, num_nodes=N).to(dev)
 
         # beta
-        I_indices = torch.LongTensor([[i,i] for i in range(N)]).t()
-        I_values = torch.tensor([1. for _ in range(N)])
-        I_sparse = torch.sparse.FloatTensor(indices=I_indices, values=I_values, size=torch.Size([N,N])).to(dev)
-        filter_l = SparseTensor.from_torch_sparse_coo_tensor(self.beta * I_sparse + DAD)
-        filter_h = SparseTensor.from_torch_sparse_coo_tensor((1. - self.beta) * I_sparse - DAD)
+        if self.ds not in c.large_graph:
+            I = torch.eye(N, device=dev)
+            filter_l = SparseTensor.from_dense(self.beta * I + DAD)
+            filter_h = SparseTensor.from_dense((1 - self.beta) * I - DAD)
+        else:
+            I_indices = torch.LongTensor([[i,i] for i in range(N)]).t()
+            I_values = torch.tensor([1. for _ in range(N)])
+            I_sparse = torch.sparse.FloatTensor(indices=I_indices, values=I_values, size=torch.Size([N,N])).to(dev)
+            filter_l = SparseTensor.from_torch_sparse_coo_tensor(self.beta * I_sparse + DAD)
+            filter_h = SparseTensor.from_torch_sparse_coo_tensor((1. - self.beta) * I_sparse - DAD)
 
         # propagate first
         x = x.type(torch.float32)
@@ -194,7 +178,10 @@ class LSGNN(MessagePassing):
         alpha_H = stack_alpha[:,:,2].t().unsqueeze(-1)
 
         # reduce dimensional
-        x_out_L_out_H = self.reduce(x_out_L_out_H)
+        for reduce_layer in self.reduce:
+            x_out_L_out_H = torch.bmm(x_out_L_out_H, reduce_layer)
+            x_out_L_out_H = F.normalize(x_out_L_out_H, p=2, dim=-1)
+            x_out_L_out_H = F.relu(x_out_L_out_H)
 
         x = x_out_L_out_H[0,:,:]               # (N, hdim)
         out_I = x.expand(self.K, -1, -1)       # (K, N, hdim)
@@ -225,8 +212,10 @@ class LSGNN(MessagePassing):
         out = self.out_linear(out)
         return out
 
-    def message(self, x_j):
-        return x_j
+    def message(self, x_j, norm):
+        # x_j: (E, out_channels)
+        # norm: (E)
+        return norm.view(-1, 1) * x_j
 
     def message_and_aggregate(self, adj_t, x):
         return matmul(adj_t, x, reduce=self.aggr)
