@@ -44,7 +44,7 @@ def even_quantile_labels(vals, nclasses, verbose=True):
     vals is np array
     returns an np array of int class labels
     """
-    label = -1 * np.ones(vals.shape[0], dtype=np.int)
+    label = -1 * np.ones(vals.shape[0], dtype=np.int32)
     interval_lst = []
     lower = -np.inf
     for k in range(nclasses - 1):
