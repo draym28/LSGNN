@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.transforms import ToUndirected
 
 from tqdm import tqdm
 
@@ -126,7 +125,6 @@ def train(ds:str, model_name:str='lsgnn', config=None, n=0):
         with torch.no_grad():
             model.eval()
             logits = model(x, edge_index, DIST, X_OUT_L_OUT_H)
-            # preds = logits.argmax(dim=1)
 
             val_loss = F.cross_entropy(logits[val_mask], y[val_mask])
             val_acc = (logits.argmax(dim=1)[val_mask].eq(y[val_mask]).sum() / val_mask.sum()).item()
@@ -188,8 +186,6 @@ def train_ntime(ds:str, model_name:str='lsgnn', config=None, num_train=None, log
         t.append(time() - t0)
         val_accs.append(best_val_acc)
         test_accs.append(best_test_acc)
-        # if best_test_acc < c.ACC_DOWN_LIMIT[ds]:
-        #     break
 
         if SAVE_MODEL:
             os.makedirs('./best_model', exist_ok=True)
@@ -213,7 +209,7 @@ def train_ntime(ds:str, model_name:str='lsgnn', config=None, num_train=None, log
     }
 
     save_results = {'results': results, 'config': config}
-    with open(f'{log_root}/results_{model_name}_{ds}_K{config["K"]}_{"undir" if config["undirected"] else "dir"}_{"adjt" if config["transposed"] else "adj"}.json', 'w') as f:
+    with open(f'{log_root}/results_{model_name}_{ds}.json', 'w') as f:
         json.dump(save_results, f, indent=4)
 
     cprint('%s, model: %s, dataset: %s, val acc: %.2f±%.2f, test acc: %.2f±%.2f, mean_time: %.2fs' % \
@@ -247,7 +243,7 @@ if __name__ == '__main__':
     for model_name in model_list:
         for dataset in ds_list:
             # config = None
-            config_file = glob.glob(f"log/log*{dataset}*.json")[-1]
+            config_file = glob.glob(f"log/config/log*{dataset}*.json")[-1]
             config = json.load(open(config_file))['config']
             if config['ds_old']:
                 os.environ['DS_OLD'] = str(1)

@@ -1,0 +1,30 @@
+{
+    "config": {
+        "num_epochs": 200,
+        "train_val_test": [
+            0.48,
+            0.32,
+            0.2
+        ],
+        "undirected": false,
+        "transposed": true,
+        "num_layers": 2,
+        "hidden_channels": 16,
+        "lr": 0.0005,
+        "wd": 0.0005,
+        "dropout": 0.1,
+        "adamw": false,
+        "num_reduce_layers": 1,
+        "A_embed": false,
+        "out_norm": true,
+        "out_mlp": false,
+        "irdc": [
+            true
+        ],
+        "K": 5,
+        "beta": 1.0,
+        "gamma": 0.5,
+        "method": "norm2",
+        "ds_old": false
+    }
+}
