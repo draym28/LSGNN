@@ -1,0 +1,45 @@
+{
+    "results": {
+        "test_acc_mean": 77.43202447891235,
+        "test_acc_std": 1.1606869420604535,
+        "test_accs": [
+            0.7809667587280273,
+            0.7794561982154846,
+            0.7643504738807678,
+            0.7854984998703003,
+            0.773413896560669,
+            0.791540801525116,
+            0.7613292932510376,
+            0.7764350175857544,
+            0.7507553100585938,
+            0.7794561982154846
+        ]
+    },
+    "config": {
+        "num_epochs": 200,
+        "train_val_test": [
+            0.48,
+            0.32,
+            0.2
+        ],
+        "undirected": true,
+        "transposed": false,
+        "num_layers": 2,
+        "hidden_channels": 16,
+        "lr": 0.01,
+        "wd": 0.0005,
+        "dropout": 0.3,
+        "adamw": false,
+        "num_reduce_layers": 1,
+        "A_embed": false,
+        "out_norm": true,
+        "out_mlp": false,
+        "irdc": [
+            true
+        ],
+        "K": 5,
+        "beta": 1.0,
+        "gamma": 1.0,
+        "method": "norm2"
+    }
+}

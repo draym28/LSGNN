@@ -160,7 +160,7 @@ if __name__ == '__main__':
         'actor', 
         'cornell', 'texas', 'wisconsin', 
         'ogbn-arxiv', 'arxiv-year'
-    ]
+    ][-5:-4]
 
     parser = argparse.ArgumentParser(description='LSGNN')
     parser.add_argument("--dataset", default='cora', dest='dataset', type=str, choices=ds_list, help='Dataset')

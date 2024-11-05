@@ -17,7 +17,7 @@ from load_large_graph.dataset import load_nc_dataset
 import config as c
 
 
-ds_root = './data'
+ds_root = '../_data'
 
 
 # -------------------------------------------------------------------
