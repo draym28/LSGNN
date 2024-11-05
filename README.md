@@ -2,7 +2,7 @@
 Official Implementation for the IJCAI2023 paper, *LSGNN: Towards General Graph Neural Network in Node Classification by Local Similarity*, [[arxiv]](https://arxiv.org/abs/2305.04225), by Yuhan Chen*, Yihong Luo*, Jing Tang, Liang Yang, Siya Qiu, Chuan Wang, Xiaochun Cao. (* means equal contribtuion)
 
 ## Update (2024-11-05)
-We update the code for LSGNN (in `v2/`) and the old version is put in `v1/`. We also release our hyper-parameters settings in `LSGNN_v2/log/`. 
+We update the code for LSGNN (in `v2/`) and the old version is put in `v1/`. We also release our hyper-parameters settings in `v2/log/`. 
 
 Note that you may not obtain the same result as those on our paper, since the performance are sensitive to device and package versions, etc. We recommande you to conduct hyper-parameters search by your own (e.g., use Optuna).
 
